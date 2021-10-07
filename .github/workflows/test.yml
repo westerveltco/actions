@@ -80,7 +80,7 @@ jobs:
           POSTGRES_PORT: ${{ env.POSTGRES_PORT }}
           REDIS_HOST: localhost
           REDIS_PORT: ${{ env.REDIS_PORT }}
-          ALLOWED_HOSTS: *
+          ALLOWED_HOSTS: "*"
         run: |
           time pytest --cov=${{ inputs.pytest-coverage-folder }} --cov-report=xml --durations 10 --reverse --ignore=${{ inputs.pytest-ignore }}
 
