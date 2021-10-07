@@ -3,6 +3,10 @@ name: Test
 on:
   workflow_call:
     inputs:
+      system-packages:
+        description: "Space-separated list of extra system packages to install on test runner"
+        required: false
+        type: string
       python-version:
         description: "Version of Python to use, defaults to 3.9"
         required: false
@@ -60,6 +64,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2.3.4
+
+      - name: Install extra system packages
+        if: ${{ inputs.system-packages }}
+        run: |
+          sudo apt-get update && sudo apt-get install --no-install-recommends -y ${{ inputs.system-packages }}
 
       - name: Setup Python ${{ inputs.python-version }}
         uses: actions/setup-python@v2.2.2
