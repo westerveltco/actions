@@ -1,0 +1,93 @@
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Version of Python to use, defaults to 3.9"
+        required: true
+        default: 3.9
+      requirements:
+        description: "Name of requirements file detailing project dependencies, defaults to `requirements.txt`"
+        required: true
+        default: requirements.txt
+      extra-requirements:
+        description: "Any extra requirement files to include when installing dependencies (e.g. requirements-test.txt). Format string to '-r <extra requirements filename>.txt'"
+        required: false
+      pytest-coverage-folder:
+        description: "Folder to run coverage on, defaults to repository name"
+        required: true
+        default: ${{ github.event.repository.name }}
+      pytest-ignore:
+        description: "Any files to ignore when running pytest"
+        required: false
+    secrets:
+      codecov-token:
+        description: "Token for uploading coverage report to Codecov"
+        required: true
+
+
+env:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: test
+
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:11-2.5
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        ports:
+          - 5432/tcp
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:6.0
+        ports:
+          - 6379/tcp
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Setup Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v2.2.2
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Upgrade pip
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: |
+          pip install --no-warn-script-location -r ${{ inputs.requirements }} ${{ inputs.extra-requirements }}
+
+      - name: Run pytest and generate coverage report
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: ${{ env.POSTGRES_PORT }}
+          REDIS_HOST: localhost
+          REDIS_PORT: ${{ env.REDIS_PORT }}
+          ALLOWED_HOSTS: *
+        run: |
+          time pytest --cov=${{ inputs.pytest-coverage-folder }} --cov-report=xml --durations 10 --reverse --ignore=${{ inputs.pytest-ignore }}
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2.1.0
+        with:
+          token: ${{ secrets.codecov-token }}
+          env_vars: OS,PYTHON
+          fail_ci_if_error: false
+          verbose: true

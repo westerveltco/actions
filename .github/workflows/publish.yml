@@ -1,0 +1,127 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile:
+        description: "Location of Dockerfile to build"
+        required: true
+      django-settings-module:
+        description: "Location of Django settings module for project"
+        required: true
+    secrets:
+      github-token:
+        description: "Token for logging in to GitHub Container Registry"
+        required: true
+
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: test
+
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:11-2.5
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        ports:
+          - 5432/tcp
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:6.0
+        ports:
+          - 6379/tcp
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v2.3.4
+
+      - name: Get current date
+        id: date
+        run: |
+          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H.%M.%SZ')"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1.6.0
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2.1.6
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1.10.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.github-token }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v2.7.0
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          load: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.date.outputs.date }}
+          build-args: BUILD_ENV=publish
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+
+      - name: Run Docker container
+        run: |
+          docker run -d --name ${{ github.repostory.name }}_test \
+            --network ${{ job.services.postgres.network }} \
+            -p 8888:5000 \
+            -e "POSTGRES_USER=${{ env.POSTGRES_USER }}" \
+            -e "POSTGRES_PASSWORD=${{ env.POSTGRES_PASSWORD }}" \
+            -e "POSTGRES_DB=${{ env.POSTGRES_DB }}" \
+            -e "POSTGRES_HOST=postgres" \
+            -e "POSTGRES_PORT=5432" \
+            -e "REDIS_HOST=redis" \
+            -e "REDIS_PORT=6379" \
+            ghcr.io/${{ github.repository }} /start
+
+      - name: Run DB migrations
+        run: |
+          docker exec ${{ github.repostory.name }}_test \
+            python /app/manage.py migrate
+
+      - name: Run deployment checks
+        env:
+          DEBUG: false
+          SECRET_KEY: BtHQgM4BxUpAQF8ppaaPduW8g6UCzB6k93ANfNWWjBpwCVH6YE
+        run: |
+          docker exec ${{ github.repostory.name }}_test \
+            python /app/manage.py check --deploy --settings=${{ inputs.django-settings-module }}
+
+      - name: Smoke test
+        run: |
+          curl localhost:8888/up/
+
+      - name: Stop and remove Docker container
+        run: |
+          docker rm --force ${{ github.repostory.name }}_test
+
+      - name: Push to GitHub Container Registry
+        run: |
+          docker push --all-tags ghcr.io/${{ github.repository }}
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
