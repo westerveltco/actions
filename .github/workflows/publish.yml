@@ -6,13 +6,16 @@ on:
       dockerfile:
         description: "Location of Dockerfile to build"
         required: true
+        type: string
       django-settings-module:
         description: "Location of Django settings module for project"
         required: true
+        type: string
     secrets:
       github-token:
         description: "Token for logging in to GitHub Container Registry"
         required: true
+        type: string
 
 
 env:

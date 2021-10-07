@@ -7,24 +7,30 @@ on:
         description: "Version of Python to use, defaults to 3.9"
         required: true
         default: 3.9
+        type: string
       requirements:
         description: "Name of requirements file detailing project dependencies, defaults to `requirements.txt`"
         required: true
         default: requirements.txt
+        type: string
       extra-requirements:
         description: "Any extra requirement files to include when installing dependencies (e.g. requirements-test.txt). Format string to '-r <extra requirements filename>.txt'"
         required: false
+        type: string
       pytest-coverage-folder:
         description: "Folder to run coverage on, defaults to repository name"
         required: true
         default: ${{ github.event.repository.name }}
+        type: string
       pytest-ignore:
         description: "Any files to ignore when running pytest"
         required: false
+        type: string
     secrets:
       codecov-token:
         description: "Token for uploading coverage report to Codecov"
         required: true
+        type: string
 
 
 env:
