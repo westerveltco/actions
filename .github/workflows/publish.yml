@@ -15,7 +15,6 @@ on:
       github-token:
         description: "Token for logging in to GitHub Container Registry"
         required: true
-        type: string
 
 
 env:

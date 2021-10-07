@@ -30,7 +30,6 @@ on:
       codecov-token:
         description: "Token for uploading coverage report to Codecov"
         required: true
-        type: string
 
 
 env:
