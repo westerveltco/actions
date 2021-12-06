@@ -16,14 +16,12 @@ on:
         description: "Token for logging in to GitHub Container Registry"
         required: true
 
-
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: test
-
 
 jobs:
   publish:
