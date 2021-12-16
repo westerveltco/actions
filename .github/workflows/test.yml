@@ -35,12 +35,10 @@ on:
         description: "Token for uploading coverage report to Codecov"
         required: true
 
-
 env:
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: test
-
 
 jobs:
   test:
